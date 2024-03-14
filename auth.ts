@@ -7,6 +7,7 @@ import { getUserById } from "./data/user";
 declare module "next-auth" {
   interface Session {
     user: {
+      id:string | undefined 
       role: "USER" | "ADMIN" | unknown;
     };
   }
@@ -18,6 +19,9 @@ export const {
   signIn,
   signOut,
 } = NextAuth({
+  adapter: PrismaAdapter(db),
+  session: { strategy: "jwt" },
+  ...authConfig,
   pages: {
     signIn:'/auth/signin',
     error: '/auth/error',
@@ -32,6 +36,14 @@ export const {
   },
 
   callbacks: {
+    async signIn({user,account}){
+      if(account?.provider !== "credentials") return true;
+      const existingUser = await getUserById(user.id as string) ;
+      //prevent signIn without email verification
+      if(!existingUser?.emailVerified) return false;
+      // TODO 2FA CHECK
+      return true;
+    },
     async session({ token, session }) {
       console.log({ sessionToken: token });
       if (session.user && token.sub) {
@@ -50,8 +62,6 @@ export const {
       return token;
     },
   },
-  adapter: PrismaAdapter(db),
   
-  session: { strategy: "jwt" },
-  ...authConfig,
+  
 });
